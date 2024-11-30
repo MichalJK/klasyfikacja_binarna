@@ -1,0 +1,27 @@
+project:
+  title: "Binary classification"
+  type: website
+  output-dir: ./docs/en
+
+website:
+  title: "Binary classification"
+  navbar:
+    left:
+      - href: about.qmd
+        text: About
+    right:
+      - href: ../
+        text: Pl
+      - href: ./
+        text: En
+        
+lang: en
+
+format:
+  html:
+    theme: cosmo
+    css: styles.css
+    toc: true
+
+
+

@@ -1,0 +1,9 @@
+project:
+  type: website
+
+profile:
+  default: polish
+  group: 
+    - [polish, english]
+
+

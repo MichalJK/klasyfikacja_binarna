@@ -1,0 +1,27 @@
+project:
+  title: "Klasyfikacja_binarna"
+  type: website
+  output-dir: ./docs
+
+website:
+  title: "Klasyfikacja binarna"
+  navbar:
+    left:
+      - href: info.qmd
+        text: Info
+    right:
+      - href: ./
+        text: Pl
+      - href: ./en
+        text: En
+
+lang: pl
+
+format:
+  html:
+    theme: cosmo
+    css: styles.css
+    toc: true
+
+
+

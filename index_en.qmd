@@ -1,0 +1,558 @@
+---
+title-block-banner: '#54698a' 
+title-block-banner-color : '#dee1e3'
+title: "Binary classification"
+subtitle: Naive Bayes and KNN
+author: "Michał Kołodziejczyk"
+date: now
+format: 
+  html:
+    toc: true
+    toc-location: left
+    tbl-pos: 'H'
+    fig-pos: 'H'
+    tbl-cap-location: margin
+    fig-cap-location: margin
+    code-fold: true
+editor: visual
+jupyter: python3
+css: styles.css
+---
+
+Binary classification is the classification of data into one of two categories. This assignment is the result of an algorithm that examines the structure of the database. In the case of the Naive Bayes method, the algorithm is based on Bayes' theorem of conditional probability. The K-Nearest Neighbours (KNN) algorithm classifies new data based on its similarity to data in the database. This similarity is measured by the distance between two defined categories.
+
+The 'mtcars' database was chosen as the basis for the operation.
+
+# The "mtcars" database
+
+The 'mtcars' database is an R environment database. It contains data characterising the engines of the car makes listed below.
+
+```{python}
+#| label: tbl-1
+#| tbl-cap: "Database: 'mtcars' "
+#| message: false
+#| warning: false 
+
+import pandas as pd
+import numpy as np
+import statsmodels.api as sm
+import matplotlib.pyplot as plt
+import itables
+from sklearn.naive_bayes import GaussianNB
+from sklearn.model_selection import train_test_split
+from itables import init_notebook_mode
+from itables import show  
+
+init_notebook_mode(all_interactive=True)
+
+# Loading the base
+
+mtcars = sm.datasets.get_rdataset("mtcars").data
+print("\n Databaza 'mtcart', dimensions: ",mtcars.shape[0]," x  ",mtcars.shape[1]," \n")
+
+mtcars = mtcars.dropna() 
+
+show(mtcars, layout={"topStart": None, "topEnd": None},scrollY="300px", scrollCollapse=True, paging=False)
+
+```
+
+| column | description                              |
+|--------|------------------------------------------|
+| mpg    | Miles/(US) gallon                        |
+| cyl    | Number of cylinders                      |
+| disp   | Displacement (cu.in.)                    |
+| hp     | Gross horsepower                         |
+| drat   | Rear axle ratio                          |
+| wt     | Weight (lb/1000)                         |
+| qsec   | 1/4 mile time                            |
+| vs     | Engine: 0 = V-shaped , 1 = straight      |
+| am     | Transmission (0 = automatic, 1 = manual) |
+| gear   | Number of forward gears                  |
+| carb   | Number of carburetors                    |
+
+: Database 'mtcars' - variable description {#tbl-mtcars .striped .hover}
+
+# Purpose of calculations
+
+1.  Check which type of engine, i.e. 'vs' = (V-shape or straight) is better in terms of gasoline consumption (gives higher 'mpg', i.e. longer mileage per gallon of fuel)?
+
+2.  Use binary classifiers NB (simple Bayes) and KNN (k nearest neighbors) so that you can tell from 'mpg' which type of engine gave a particular 'mpg'.
+
+Variable 'vs' category: "0" - V-shaped ; "1" - straight .
+
+The base variables 'mtcars' have been reduced to 'mpg' and 'vs'. The resulting base is called 'data'.
+
+## Practice base 'data'
+
+```{python}
+#| label: tbl-2
+#| tbl-cap: "Practice database 'data' "
+#| message: false
+#| warning: false
+
+# Column selection
+data = mtcars[['mpg', 'vs']]
+
+show(data, layout={"topStart": None, "topEnd": None},scrollY="300px", scrollCollapse=True, paging=False)
+
+```
+
+80% of the database 'data' records were drawn for learning the model, while 20% were kept for testing and estimating its quality. The drawing was done without repetition.
+
+## Training data 'train'
+
+```{python}
+#| label: tbl-3
+#| tbl-cap: "Training database 'train' "
+#| message: false
+#| warning: false
+
+np.random.seed(7)
+
+#Training database index selection
+index = np.random.choice(data.index, size=int(0.8 * len(data)), replace=False)
+
+
+# Training data 'train'
+train = data.loc[index]
+
+# Converting 'vs' into a categorical variable
+train['vs'] = train['vs'].astype('category')
+
+show(train, layout={"topStart": None, "topEnd": None},scrollY="300px", scrollCollapse=True, paging=False)
+
+```
+
+## Testing data 'test'
+
+```{python}
+#| label: tbl-4
+#| tbl-cap: "Testing database 'test' "
+#| message: false
+#| warning: false
+
+# Test data
+test = data.drop(index)
+
+show(test, layout={"topStart": None, "topEnd": None}, scrollY="200px", scrollCollapse=True, paging=False)
+
+```
+
+```{python}
+#| label: Wykres
+#| echo: false
+#| message: false
+#| warning: false
+
+# Charts
+
+def wykresy(train, test, dane, probs, pp, n):
+  
+    plt.scatter(train['mpg'], train['vs'], s=3, color='blue', label='Traning data')
+    plt.scatter(test['mpg'], test['vs'], s=3, color='red', label='Testing data')
+    plt.scatter(dane['mpg'], probs[0:n,0], s = 30,  color='orange', label='Prob. vs = 0')
+    plt.scatter(dane['mpg'], probs[0:n,1], s = 30,  color='brown', label='Prob. vs = 1')
+    plt.scatter(dane['mpg'], pp, s = 100,  color='green', label='Classification results', alpha = 0.3)
+    
+    plt.legend(loc='right')
+    plt.ylabel("p, vs")
+    plt.show()  
+    
+    return
+  
+```
+
+```{python}
+#| label: Wykres_ani
+#| echo: false
+#| message: false
+#| warning: false
+
+import matplotlib.animation as animation
+from matplotlib.animation import FuncAnimation
+
+# Charts with animation
+
+def wykresy_mpg_vs(train, test, dane, probs, pp, n, sss):
+
+    fig, ax = plt.subplots()
+    
+    # Animation
+    frames = 7
+    
+    def update(frames):
+        ax.scatter(dane['mpg'], pp, s=100, color='green', label='Classification results', alpha = 0.05)
+    
+    animation = FuncAnimation(fig, update,  frames=frames, interval=200)
+    
+    # Chart
+    plt.scatter(train['mpg'], train['vs'], s=3, color='blue', label='Training data')
+    plt.scatter(test['mpg'], test['vs'], s=3, color='red', label='Testing data')
+    plt.scatter(dane['mpg'], probs[0:n,0], s = 30,  color='orange', label='Prob. vs = 0')
+    plt.scatter(dane['mpg'], probs[0:n,1], s = 30,  color='brown', label='Prob. vs = 1')
+    plt.scatter(dane['mpg'], pp, s = 100,  color='green', label='Classification results', alpha = 0.2)
+    
+    plt.legend(loc='right')
+    plt.ylabel("p, vs")
+    plt.xlabel("mpg")
+    
+    # Save
+    animation.save(f"{sss}{".gif"}", writer="pillow") 
+    plt.savefig(f"{sss}{".png"}") 
+    
+    plt.close()
+    
+    return
+
+```
+
+# NB - Naive Bayes
+
+A naive Bayes classifier works on a probability basis, i.e. it determines posterior probabilities and, based on these, performs a classification into one class or the other.
+
+## NB classification model and its training
+
+```{python}
+#| label: model
+#| message: false
+#| warning: false
+
+# Naive Bayes
+nb = GaussianNB()
+nb.fit(train[['mpg']], train['vs'])
+
+```
+
+## Testing the model
+
+### Classification result
+
+```{python}
+#| label: tbl-5
+#| tbl-cap: 'Results: p(“0”) - probability vs = “0”, p(“1”) - probability vs = “1”'
+#| message: false
+#| warning: false
+
+#  Prediction on test data
+predictions = nb.predict(test[['mpg']])
+
+# Posterior probability
+probs = nb.predict_proba(test[['mpg']])  
+
+# Generating a df for test results
+wynik = pd.DataFrame({'mpg': test['mpg'], 'test[vs]': test['vs'], 'predicted_class': predictions, 'p("0")':np.round(probs[0:8,0],3), 'p("1")':np.round(probs[0:8,1],3)})
+
+show(wynik, layout={"topStart": None, "topEnd": None}, scrollY="400px", scrollCollapse=True, paging=False)
+
+```
+
+### Confusion matrix
+
+```{python}
+#| label: tbl-7
+#| tbl-cap: "Confusion matrix "
+#| message: false
+#| warning: false
+
+from sklearn.metrics import (
+    accuracy_score,
+    cohen_kappa_score,
+    confusion_matrix,
+    ConfusionMatrixDisplay
+)
+
+cm = confusion_matrix(test[['vs']], wynik.predicted_class )
+
+cm = pd.DataFrame(cm)
+cm.rename(columns={0:'predicted: 0',1:'predicted: 1'}, inplace=True) 
+cm.rename(index={0:'actual: 0',1:'actual: 1'}, inplace=True)
+show(cm)
+
+# disp = ConfusionMatrixDisplay(confusion_matrix=cm,
+#                                display_labels=model.classes_)
+# disp.plot() 
+
+```
+
+### Accuracy and kappa
+
+```{python}
+
+accuracy = accuracy_score(test[['vs']], wynik.predicted_class)
+print('accuracy = ', np.round(accuracy,3))
+
+kappa = cohen_kappa_score(test[['vs']], wynik.predicted_class)
+print('kappa = ', np.round(kappa,3))
+
+```
+
+### Charts
+
+The @fig-10 shows the prediction results (green circle) and probabilities, serving as the basis for classification, against the training and test data.
+
+```{python}
+#| echo: false
+#| eval: false
+#| label: fig-1
+#| fig-cap: "Summary chart of NB model testing (green circle is classification result)"
+#| message: false
+#| warning: false
+
+pp = predictions
+n = len(test)+1
+
+wykresy(train, test, test, probs, pp, n)
+
+```
+
+```{python}
+#| message: false
+#| warning: false
+
+pp = predictions
+n = len(test)+1
+ppp = "fig1"
+
+wykresy_mpg_vs(train,test,test,probs,pp,n,ppp)
+
+```
+
+![NB model testing summary chart (green flashing circles are NB classification result)](fig1.gif){#fig-10}
+
+## Prediction on the new data
+
+### New data
+
+Generated new test data posted in @tbl-8 . The classification summary chart is shown in @fig-20 .
+
+```{python}
+#| label: tbl-8
+#| tbl-cap: "New data "
+#| message: false
+#| warning: false
+
+# New data for prediction
+nowe_dane = pd.DataFrame({'mpg': np.arange(10, 31, 5)})
+show(np.transpose(nowe_dane))
+
+```
+
+### Classification
+
+```{python}
+#| label: tbl-9
+#| tbl-cap: "Classification result for new data "
+#| message: false
+#| warning: false
+
+# Prediction
+predykcja = nb.predict(nowe_dane[['mpg']])
+probs = nb.predict_proba(nowe_dane[['mpg']])  # posterior
+
+
+# Generation of a df for new data
+wynik = pd.DataFrame({'mpg': nowe_dane['mpg'], 'predicted_class': predykcja, 'p("0")':np.round(probs[0:5,0],3), 'p("1")':np.round(probs[0:5,1],3)})
+
+show(wynik, layout={"topStart": None, "topEnd": None}, scrollY="400px", scrollCollapse=True, paging=False)
+
+```
+
+### Charts
+
+```{python}
+#| echo: false
+#| eval: false
+#| label: fig-2
+#| fig-cap: "Summary chart for new data (green circle is the result of classification)"
+#| message: false
+#| warning: false
+
+pp_new = predykcja.astype(int)
+n = len(nowe_dane)
+
+wykresy(train, test, nowe_dane, probs, pp_new, n)
+
+```
+
+```{python}
+#| message: false
+#| warning: false
+
+pp_new = predykcja.astype(int)
+n = len(nowe_dane)
+
+wykresy_mpg_vs(train,test,nowe_dane,probs,pp_new,n,"fig2")
+
+```
+
+![Summary chart for new data (green flashing circles are NB classification results)](fig2.gif){#fig-20}
+
+# KNN ( K Neareast Neighbor)
+
+The same database @tbl-2 was used with the same split between the training part @tbl-3 and the test part @tbl-4 .
+
+## Training of the KNN model
+
+```{python}
+#| message: false
+#| warning: false
+
+from sklearn.neighbors import KNeighborsClassifier
+
+# Training
+
+knn = KNeighborsClassifier(n_neighbors=5)
+knn.fit(train[['mpg']], train['vs'])
+
+```
+
+## Prediction on test data
+
+### Classification results
+
+```{python}
+#| label: tbl-10
+#| tbl-cap: "Result of KNN classification of test data"
+#| message: false
+#| warning: false
+
+# Prediction
+predictions = knn.predict(test[['mpg']])
+
+probs = knn.predict_proba(test[['mpg']])  
+
+# Generate test results as df
+wynik = pd.DataFrame({'mpg': test['mpg'], 'test[vs]': test['vs'], 'predicted_class': predictions, 'p("0")':np.round(probs[0:8,0],3), 'p("1")':np.round(probs[0:8,1],3)})
+
+show(wynik, layout={"topStart": None, "topEnd": None}, scrollY="400px", scrollCollapse=True, paging=False)
+
+
+```
+
+### Confusion matrix
+
+```{python}
+#| label: tbl-11
+#| tbl-cap: "Confusion matrix "
+#| message: false
+#| warning: false
+
+cm = confusion_matrix(test['vs'], predictions)
+
+cm = pd.DataFrame(cm)
+cm.rename(columns={0:'predictied: 0',1:'predicted: 1'}, inplace=True) 
+cm.rename(index={0:'actual: 0',1:'actual: 1'}, inplace=True)
+show(cm)
+
+
+```
+
+### Accuracy and kappa
+
+```{python}
+#| message: false
+#| warning: false
+
+accuracy = accuracy_score(test[['vs']], wynik.predicted_class)
+print('accuracy = ', np.round(accuracy,3))
+
+kappa = cohen_kappa_score(test[['vs']], wynik.predicted_class)
+print('kappa = ', np.round(kappa,3))
+
+```
+
+### Charts
+
+```{python}
+#| echo: false
+#| eval: false
+#| label: fig-3
+#| fig-cap: "Summary chart of KNN model testing (green circle is classification result)"
+#| message: false
+#| warning: false
+
+pp = predictions
+n = len(test)+1
+
+wykresy(train, test, test, probs, pp, n)
+
+```
+
+```{python}
+#| message: false
+#| warning: false
+
+pp = predictions
+n = len(test)+1
+
+wykresy_mpg_vs(train,test,test,probs,pp,n,"fig3")
+
+```
+
+![Summary chart of KNN model testing (green flashing circles are KNN classification results)](fig3.gif){#fig-30}
+
+## Prediction on the new data
+
+### New data
+
+We used the test data provided in @tbl-8 . The classification summary chart is shown in @fig-40 .
+
+### Classification
+
+```{python}
+#| label: tbl-12
+#| tbl-cap: "KNN classification result for the new data"
+#| message: false
+#| warning: false
+
+# Prediction
+predykcja = knn.predict(nowe_dane[['mpg']])
+probs = knn.predict_proba(nowe_dane[['mpg']])  # posterior
+
+
+# Generate a df for new data
+wynik = pd.DataFrame({'mpg': nowe_dane['mpg'], 'predicted_class': predykcja, 'p("0")':np.round(probs[0:5,0],3), 'p("1")':np.round(probs[0:5,1],3)})
+
+show(wynik, layout={"topStart": None, "topEnd": None}, scrollY="400px", scrollCollapse=True, paging=False)
+
+```
+
+### Charts
+
+```{python}
+#| echo: false
+#| eval: false
+#| label: fig-4
+#| fig-cap: "Summary chart for new data (green circle is KNN classification result)"
+#| message: false
+#| warning: false
+
+pp_new = predykcja.astype(int)
+n = len(nowe_dane)
+
+wykresy(train, test, nowe_dane, probs, pp_new, n)
+
+```
+
+```{python}
+#| message: false
+#| warning: false
+
+pp_new = predykcja.astype(int)
+n = len(nowe_dane)
+
+wykresy_mpg_vs(train,test,nowe_dane,probs,pp_new,n,"fig4")
+
+```
+
+![Summary chart for new data (green flashing circles are KNN classification results)](fig4.gif){#fig-40}
+
+# Summary
+
+Graphs @fig-10 - @fig-40 show that:
+
+-   In the mpg range from 0 to about 17: 'vs' = 0 (V-shaped),
+-   In the mpg range from about 26 to 30: 'vs' = 1 (strait).
+-   In the intermediate 'mpg' range from about 17 to 26, the probability of 'vs' being equal to 1 increases; the cutoff point is approximately at 'mpg' = 22.
+
+Both classifiers performed similarly based on the accuracy comparison. The 'kappa' metric was slightly higher for KNN. The training base was very sparse, and most likely because of this, the results are very dependent on the draw of the training base.

@@ -1,0 +1,8 @@
+---
+title: "info"
+jupyter: python3
+---
+
+Jest to przykład klasyfikacji binarnej NB (Naive Bayes) i KNN (K Neareast Neighbors) w Pythonie.
+
+Raport został wykonany w Quarto (Jupyter) w RStudio.
