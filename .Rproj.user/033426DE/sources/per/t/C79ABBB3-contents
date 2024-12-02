@@ -1,0 +1,561 @@
+---
+title-block-banner: '#54698a' 
+title-block-banner-color : '#dee1e3'
+title: "Klasyfikacja binarna "
+subtitle: Naive Bayes i KNN
+author: "Michał Kołodziejczyk"
+date: now
+format: 
+  html:
+    toc: true
+    toc-location: left
+    tbl-pos: 'H'
+    fig-pos: 'H'
+    tbl-cap-location: margin
+    fig-cap-location: margin
+    code-fold: true
+editor: visual
+jupyter: python3
+css: styles.css
+---
+
+Klasyfikacja binarna polega na zakwalifikowaniu danych do jednej z dwu istniejących kategorii. Przyporządkowanie to następuje jako wynik działania algorytmu badającego strukturę bazy danych. W przypadku metody Naive Bayes algorytm oparty jest na twierdzeniu Bayesa o prawdopodobieństwie warunkowym. Algorytm KNN (K Neareast Neighbors) klasyfikuje nową daną na podstawie jej podobieństwa do danych zawartych w bazie. Podobieństwo to mierzy się za pomocą odległości od dwu zdefiniowanych kategorii.
+
+Jako podstawę działania wybrano bazę 'mtcars'.
+
+# Baza "mtcars"
+
+Baza 'mtcars' jest bazą ze środowiska R. Zawiera dane charakteryzujące silniki wymienionych poniżej marek samochodów.
+
+```{python}
+#| label: tbl-1
+#| tbl-cap: "Baza 'mtcars' "
+#| message: false
+#| warning: false 
+
+import pandas as pd
+import numpy as np
+import statsmodels.api as sm
+import matplotlib.pyplot as plt
+import itables
+from sklearn.naive_bayes import GaussianNB
+from sklearn.model_selection import train_test_split
+from itables import init_notebook_mode
+from itables import show  
+
+init_notebook_mode(all_interactive=True)
+
+# Ładowanie bazy
+
+mtcars = sm.datasets.get_rdataset("mtcars").data
+print("\n Baza 'mtcart', wymiary: ",mtcars.shape[0]," x  ",mtcars.shape[1]," \n")
+
+mtcars = mtcars.dropna() 
+
+show(mtcars, layout={"topStart": None, "topEnd": None},scrollY="300px", scrollCollapse=True, paging=False)
+
+```
+
+| zmienna | opis |
+|----|----|
+| mpg | Miles/(US) gallon |
+| cyl | Number of cylinders |
+| disp | Displacement (cu.in.) |
+| hp | Gross horsepower |
+| drat | Rear axle ratio |
+| wt | Weight (lb/1000) |
+| qsec | 1/4 mile time |
+| vs | Engine: 0 = V-shaped (widlasty w układzie V), 1 = straight (rzędowy) |
+| am | Transmission (0 = automatic, 1 = manual) |
+| gear | Number of forward gears |
+| carb | Number of carburetors |
+
+: Baza 'mtcars' - opis zmiennych {#tbl-mtcars .striped .hover}
+
+# Cel obliczeń
+
+1.  Sprawdzić, jaki rodzaj silnika, czyli 'vs' = (V-sheped lub straight) jest lepszy, jeśli chodzi o zyżycie benzyny (daje wyższe 'mpg', czyli dłuższy przebieg na jednym galonie paliwa)?
+
+2.  Zastosowanie klasyfikatorów binarnych NB (prosty Bayes) i KNN (k najbliższych sąsiadów) tak, by na podstawie 'mpg' można było stwierdzić, jakiego rodzaju silnik dał konkretny przebieg.
+
+Oznaczenie kategorii zmiennej 'vs': "0" - V- shaped - widlasty w układzie V; "1" - straigt - rzędowy.
+
+Zmienne bazy 'mtcars' ograniczono do 'mpg' i 'vs'. Wynikowa baza nazywa się 'data'.
+
+## Baza ćwiczebna 'data'
+
+```{python}
+#| label: tbl-2
+#| tbl-cap: "Baza ćwiczebna 'data' "
+#| message: false
+#| warning: false
+
+# Wybór kolumn 
+data = mtcars[['mpg', 'vs']]
+
+show(data, layout={"topStart": None, "topEnd": None},scrollY="300px", scrollCollapse=True, paging=False)
+
+```
+
+80% rekordów bazy 'data' przeznaczono do nauki modelu, natomiast 20% zachowano w celu przetestowania i oszacowania jego jakości. Losowanie przeprowadzono bez powtórzeń.
+
+## Baza treningowa 'train'
+
+```{python}
+#| label: tbl-3
+#| tbl-cap: "Baza treningowa "
+#| message: false
+#| warning: false
+
+np.random.seed(7)
+
+# Wybór indeksów bazy treningowej
+index = np.random.choice(data.index, size=int(0.8 * len(data)), replace=False)
+
+
+# Dane treningowe 'train'
+train = data.loc[index]
+
+# Zamiana 'vs' na zmienną kategorialną
+train['vs'] = train['vs'].astype('category')
+
+show(train, layout={"topStart": None, "topEnd": None},scrollY="300px", scrollCollapse=True, paging=False)
+
+```
+
+## Baza testowa 'test'
+
+```{python}
+#| label: tbl-4
+#| tbl-cap: "Baza testowa 'test' "
+#| message: false
+#| warning: false
+
+# Dane testowe 
+test = data.drop(index)
+
+show(test, layout={"topStart": None, "topEnd": None}, scrollY="200px", scrollCollapse=True, paging=False)
+
+```
+
+```{python}
+#| label: Wykres
+#| echo: false
+#| message: false
+#| warning: false
+
+# Wykresy
+
+def wykresy(train, test, dane, probs, pp, n):
+  
+    plt.scatter(train['mpg'], train['vs'], s=3, color='blue', label='Dane treningowe')
+    plt.scatter(test['mpg'], test['vs'], s=3, color='red', label='Dane testowe')
+    plt.scatter(dane['mpg'], probs[0:n,0], s = 30,  color='orange', label='Prawdopod., że vs = 0')
+    plt.scatter(dane['mpg'], probs[0:n,1], s = 30,  color='brown', label='Prawdopod., że vs = 1')
+    plt.scatter(dane['mpg'], pp, s = 100,  color='green', label='Wynik klasyfikacji', alpha = 0.3)
+    
+    plt.legend(loc='right')
+    plt.ylabel("p, vs")
+    plt.show()  
+    
+    return
+  
+```
+
+```{python}
+#| label: Wykres_ani
+#| echo: false
+#| message: false
+#| warning: false
+
+import matplotlib.animation as animation
+from matplotlib.animation import FuncAnimation
+
+# Wykresy z animacją
+
+def wykresy_mpg_vs(train, test, dane, probs, pp, n, sss):
+
+    fig, ax = plt.subplots()
+    
+    # Animacja 
+    frames = 7
+    
+    def update(frames):
+        ax.scatter(dane['mpg'], pp, s=100, color='green', label='Wynik klasyfikacji', alpha = 0.05)
+    
+    animation = FuncAnimation(fig, update,  frames=frames, interval=200)
+    
+    # Wykres
+    plt.scatter(train['mpg'], train['vs'], s=3, color='blue', label='Dane treningowe')
+    plt.scatter(test['mpg'], test['vs'], s=3, color='red', label='Dane testowe')
+    plt.scatter(dane['mpg'], probs[0:n,0], s = 30,  color='orange', label='Prawdopod., że vs = 0')
+    plt.scatter(dane['mpg'], probs[0:n,1], s = 30,  color='brown', label='Prawdopod., że vs = 1')
+    plt.scatter(dane['mpg'], pp, s = 100,  color='green', label='Wynik klasyfikacji', alpha = 0.2)
+    
+    plt.legend(loc='right')
+    plt.ylabel("p, vs")
+    plt.xlabel("mpg")
+    
+    # Zapis
+    animation.save(f"{sss}{".gif"}", writer="pillow") 
+    plt.savefig(f"{sss}{".png"}") 
+    
+    plt.close()
+    
+    return
+
+```
+
+# NB - prosty klasyfikator Bayesa
+
+Prosty (naiwny) klasyfikator Bayesa działa na zasadzie probabilitycznej, tzn. wyznacza prawdopodobieństwo warunkowe i na tej podstawie przeprowadza klasyfikację do jednej lub drugiej klasy.
+
+## Model klasyfikacji NB i jego trening
+
+```{python}
+#| label: model
+#| message: false
+#| warning: false
+
+# Model Naive Bayes
+nb = GaussianNB()
+nb.fit(train[['mpg']], train['vs'])
+
+```
+
+## Testowanie modelu
+
+### Wynik klasyfikacji
+
+```{python}
+#| label: tbl-5
+#| tbl-cap: 'Wyniki: p("0") - prawdopodobieństwo vs = "0", p("1") - prawdopodobieństwo vs = "1"'
+#| message: false
+#| warning: false
+
+# Predykcja na danych testowych
+predictions = nb.predict(test[['mpg']])
+
+# Prawdopodobieństwo warunkowe (a posteriori) 
+probs = nb.predict_proba(test[['mpg']])  
+
+# Generowanie df dla wyników testowania 
+wynik = pd.DataFrame({'mpg': test['mpg'], 'test[vs]': test['vs'], 'predicted_class': predictions, 'p("0")':np.round(probs[0:8,0],3), 'p("1")':np.round(probs[0:8,1],3)})
+
+show(wynik, layout={"topStart": None, "topEnd": None}, scrollY="400px", scrollCollapse=True, paging=False)
+
+```
+
+### Tabela błędów
+
+```{python}
+#| label: tbl-7
+#| tbl-cap: "Confusion matrix "
+#| message: false
+#| warning: false
+
+from sklearn.metrics import (
+    accuracy_score,
+    cohen_kappa_score,
+    confusion_matrix,
+    ConfusionMatrixDisplay
+)
+
+cm = confusion_matrix(test[['vs']], wynik.predicted_class )
+
+cm = pd.DataFrame(cm)
+cm.rename(columns={0:'przewidywane: 0',1:'przewidywane: 1'}, inplace=True) 
+cm.rename(index={0:'rzeczywiste: 0',1:'rzeczeczywiste: 1'}, inplace=True)
+show(cm)
+
+# disp = ConfusionMatrixDisplay(confusion_matrix=cm,
+#                                display_labels=model.classes_)
+# disp.plot() 
+
+```
+
+### Dokładność i kappa
+
+```{python}
+
+accuracy = accuracy_score(test[['vs']], wynik.predicted_class)
+print('accuracy = ', np.round(accuracy,3))
+
+kappa = cohen_kappa_score(test[['vs']], wynik.predicted_class)
+print('kappa = ', np.round(kappa,3))
+
+```
+
+### Wykresy
+
+Na wykresie @fig-10 przedstawiono na tle danych treningowych i testowych wynik przewidywania (zielone kółko) oraz prawdopodobieństwa, służące jako podstawa klasyfikacji.
+
+```{python}
+#| echo: false
+#| eval: false
+#| label: fig-1
+#| fig-cap: "Wykres zbiorczy testowania modelu NB (zielone kółko to wynik klasyfikacji)"
+#| message: false
+#| warning: false
+
+pp = predictions
+n = len(test)+1
+
+wykresy(train, test, test, probs, pp, n)
+
+```
+
+```         
+```
+
+```{python}
+#| message: false
+#| warning: false
+
+pp = predictions
+n = len(test)+1
+ppp = "fig1"
+
+wykresy_mpg_vs(train,test,test,probs,pp,n,ppp)
+
+```
+
+![Wykres zbiorczy testowania modelu NB (zielone migające kółka to wynik klasyfikacji NB)](fig1.gif){#fig-10}
+
+## Predykcja na nowych danych
+
+### Nowe dane
+
+Wygenerowano nowe dane testowe zamieszczone w tab. @tbl-8 . Wykres zbiorczy klasyfikacji przedstawiono na rys. @fig-20 .
+
+```{python}
+#| label: tbl-8
+#| tbl-cap: "Nowe dane"
+#| message: false
+#| warning: false
+
+# Nowe dane
+nowe_dane = pd.DataFrame({'mpg': np.arange(10, 31, 5)})
+show(np.transpose(nowe_dane))
+
+```
+
+### Klasyfikacja
+
+```{python}
+#| label: tbl-9
+#| tbl-cap: "Wynik klasyfikacji dla nowych danych"
+#| message: false
+#| warning: false
+
+# Predykcja
+predykcja = nb.predict(nowe_dane[['mpg']])
+probs = nb.predict_proba(nowe_dane[['mpg']])  # posterior
+
+
+# Generowanie df dla nowych danych
+wynik = pd.DataFrame({'mpg': nowe_dane['mpg'], 'predicted_class': predykcja, 'p("0")':np.round(probs[0:5,0],3), 'p("1")':np.round(probs[0:5,1],3)})
+
+show(wynik, layout={"topStart": None, "topEnd": None}, scrollY="400px", scrollCollapse=True, paging=False)
+
+```
+
+### Wykresy
+
+```{python}
+#| echo: false
+#| eval: false
+#| label: fig-2
+#| fig-cap: "Wykres zbiorczy dla nowych danych (zielone kółko to wynik klasyfikacji)"
+#| message: false
+#| warning: false
+
+pp_new = predykcja.astype(int)
+n = len(nowe_dane)
+
+wykresy(train, test, nowe_dane, probs, pp_new, n)
+
+```
+
+```{python}
+#| message: false
+#| warning: false
+
+pp_new = predykcja.astype(int)
+n = len(nowe_dane)
+
+wykresy_mpg_vs(train,test,nowe_dane,probs,pp_new,n,"fig2")
+
+```
+
+![Wykres zbiorczy dla nowych danych (zielone migające kółka to wynik klasyfikacji NB)](fig2.gif){#fig-20}
+
+# KNN ( K Neareast Neighbor) - k najbliższych sąsiadów
+
+Wykorzystano tę samą bazę danych @tbl-2 z takim samym podziałem na część treningową @tbl-3 i testową @tbl-4 .
+
+## Trening modelu klasyfikacji KNN
+
+```{python}
+#| message: false
+#| warning: false
+
+from sklearn.neighbors import KNeighborsClassifier
+
+# Trenowanie modelu
+
+knn = KNeighborsClassifier(n_neighbors=5)
+knn.fit(train[['mpg']], train['vs'])
+
+```
+
+## Predykcja na danych testowych
+
+### Wynik klasyfikacji
+
+```{python}
+#| label: tbl-10
+#| tbl-cap: "Wynik klasyfikacji KNN danych testowych"
+#| message: false
+#| warning: false
+
+# Predykcja
+predictions = knn.predict(test[['mpg']])
+
+probs = knn.predict_proba(test[['mpg']])  
+
+# Generowanie wyników testowania jako df 
+wynik = pd.DataFrame({'mpg': test['mpg'], 'test[vs]': test['vs'], 'predicted_class': predictions, 'p("0")':np.round(probs[0:8,0],3), 'p("1")':np.round(probs[0:8,1],3)})
+
+show(wynik, layout={"topStart": None, "topEnd": None}, scrollY="400px", scrollCollapse=True, paging=False)
+
+
+```
+
+### Tabela błędów
+
+```{python}
+#| label: tbl-11
+#| tbl-cap: "Confusion matrix "
+#| message: false
+#| warning: false
+
+cm = confusion_matrix(test['vs'], predictions)
+
+cm = pd.DataFrame(cm)
+cm.rename(columns={0:'przewidywane: 0',1:'przewidywane: 1'}, inplace=True) 
+cm.rename(index={0:'rzeczywiste: 0',1:'rzecywiste: 1'}, inplace=True)
+show(cm)
+
+
+```
+
+### Dokładność i kappa
+
+```{python}
+#| message: false
+#| warning: false
+
+accuracy = accuracy_score(test[['vs']], wynik.predicted_class)
+print('accuracy = ', np.round(accuracy,3))
+
+kappa = cohen_kappa_score(test[['vs']], wynik.predicted_class)
+print('kappa = ', np.round(kappa,3))
+
+```
+
+### Wykresy
+
+```{python}
+#| echo: false
+#| eval: false
+#| label: fig-3
+#| fig-cap: "Wykres zbiorczy testowania modelu KNN (zielone kółko to wynik klasyfikacji)"
+#| message: false
+#| warning: false
+
+pp = predictions
+n = len(test)+1
+
+wykresy(train, test, test, probs, pp, n)
+
+```
+
+```{python}
+#| message: false
+#| warning: false
+
+pp = predictions
+n = len(test)+1
+
+wykresy_mpg_vs(train,test,test,probs,pp,n,"fig3")
+
+```
+
+![Wykres zbiorczy testowania modelu KNN (zielone migające kółka to wynik klasyfikacji KNN)](fig3.gif){#fig-30}
+
+## Predykcja na nowych danych
+
+### Nowe dane
+
+Wygenerowano nowe dane testowe zamieszczone w tab. @tbl-8 . Wykres zbiorczy klasyfikacji przedstawiono na rys. @fig-40 .
+
+### Klasyfikacja
+
+```{python}
+#| label: tbl-12
+#| tbl-cap: "Wynik klasyfikacji KNN dla nowych danych "
+#| message: false
+#| warning: false
+
+# Predykcja
+predykcja = knn.predict(nowe_dane[['mpg']])
+probs = knn.predict_proba(nowe_dane[['mpg']])  # posterior
+
+
+# Generowanie df dla nowych danych
+wynik = pd.DataFrame({'mpg': nowe_dane['mpg'], 'predicted_class': predykcja, 'p("0")':np.round(probs[0:5,0],3), 'p("1")':np.round(probs[0:5,1],3)})
+
+show(wynik, layout={"topStart": None, "topEnd": None}, scrollY="400px", scrollCollapse=True, paging=False)
+
+```
+
+### Wykresy
+
+```{python}
+#| echo: false
+#| eval: false
+#| label: fig-4
+#| fig-cap: "Wykres zbiorczy dla nowych danych (zielone kółko to wynik klasyfikacji KNN)"
+#| message: false
+#| warning: false
+
+pp_new = predykcja.astype(int)
+n = len(nowe_dane)
+
+wykresy(train, test, nowe_dane, probs, pp_new, n)
+
+```
+
+```{python}
+#| message: false
+#| warning: false
+
+pp_new = predykcja.astype(int)
+n = len(nowe_dane)
+
+wykresy_mpg_vs(train,test,nowe_dane,probs,pp_new,n,"fig4")
+
+```
+
+![Wykres zbiorczy dla nowych danych (zielone migające kółka to wynik klasyfikacji KNN)](fig4.gif){#fig-40}
+
+# Podsumowanie
+
+1.  Wykresy @fig-10 - @fig-40 wskazują na to, że:
+
+-   w zakresie 'mpg' od 0 do ok. 17 'vs' = 0 (silnik w układzie V),
+-   w zakresie 'mpg' od ok 26 do 30 'vs' = 1 (silnik rzędowy).
+-   w zakresie pośrednim 'mpg' od ok 17 do 26 rośnie pradopodobieństwo, że 'vs' będzie równe 1; punkt odcięcia znajduje się mniej więcej w 'mpg' = 22.
+
+2.  Oba klasyfikatory spisały się podobnie na podstawie porównania dokładności. Metryka 'kappa' była nieco większa w przypadku KNN. Baza ćwiczeniowa była bardzo nieliczna i najprawdopodobniej z tego względu wyniki bardzo zależą od losowania bazy treningowej.

@@ -1,0 +1,12 @@
+{
+  "hash": "8549d337e04ee79e2a6bb860b8707df3",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: About\n---\n\nThis is an example of binary classification of NB (Naive Bayes) and KNN (K Neareast Neighbors) in Python. \n\nThe report was performed in Quarto (Jupyter) in RStudio.\n\n",
+    "supporting": [
+      "about_files\\figure-html"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}
