@@ -14,12 +14,18 @@ Baza ‘mtcars’ liczy sobie zaledwie 32 rekordy danych. W związku z tym wynik
 
 
 
-
+&nbsp;
 
 
 
 
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+&nbsp;
+
+
+
 This is a Quarto report in the form of an HTML document on binary classification using the simple (naive) Bayes method and the k-nearest neighbor (KNN) method. The report was done in a bilingual version.
 
 I treated it as an exercise in using Python for binary classification and in generating a bilingual report in Quarto (RStudio).
